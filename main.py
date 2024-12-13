@@ -80,3 +80,5 @@ if __name__ == "__main__":
 
     # Prepare the data
     X_train, X_test, y_train, y_test = prepare_data(images, labels)
+
+

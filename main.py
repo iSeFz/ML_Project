@@ -71,19 +71,19 @@ def prepare_data(images, labels):
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
 
-def cost_function(theta, X, y, lambd):
+def cost_function(theta, X, y):
     m = len(y)
     h = sigmoid(X.dot(theta))
     cost = (-y.dot(np.log(h)) - (1 - y).dot(np.log(1 - h))) / m
     return cost 
 
-def gradient(theta, X, y, lambd):
+def gradient(theta, X, y):
     m = len(y)
     h = sigmoid(X.dot(theta))
     grad = X.T.dot(h - y) / m
     return grad
 
-def one_vs_all(X, y, num_labels, lambd, max_iters):
+def one_vs_all(X, y, num_labels, max_iters):
     m, n = X.shape
     all_theta = np.zeros((num_labels, n + 1))  # Theta for each class, +1 for the intercept term
 
@@ -93,7 +93,7 @@ def one_vs_all(X, y, num_labels, lambd, max_iters):
     for c in range(num_labels):
         initial_theta = np.zeros(n + 1)  # +1 for the intercept term
         y_c = (y == c).astype(int)  # Convert the labels to 1 vs. all
-        result = minimize(fun=cost_function, x0=initial_theta, jac=gradient, args=(X_with_intercept, y_c, lambd), 
+        result = minimize(fun=cost_function, x0=initial_theta, jac=gradient, args=(X_with_intercept, y_c), 
                           method='TNC', options={'maxfun': max_iters})
         all_theta[c, :] = result.x
 
@@ -177,11 +177,10 @@ if __name__ == "__main__":
     
     # Define Parameters
     num_labels = 26  
-    lambda_reg = 0.01
     max_iters = 40
     
     # Train the model
-    all_theta = one_vs_all(X_train_flattened, y_train, num_labels=num_labels, lambd=lambda_reg, max_iters=max_iters)
+    all_theta = one_vs_all(X_train_flattened, y_train, num_labels=num_labels, max_iters=max_iters)
 
     # Predict on the training and test set
     y_train_pred = predict_one_vs_all(all_theta, X_train_flattened)

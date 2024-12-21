@@ -1,9 +1,15 @@
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tensorflow as tf
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten
+from keras.optimizers import AdamW
+from keras.utils import load_img, img_to_array
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, f1_score , accuracy_score
+from sklearn.metrics import confusion_matrix, f1_score , accuracy_score, classification_report
 from scipy.optimize import minimize
 from sklearn.svm import SVC
 
@@ -22,6 +28,7 @@ def load_dataset(dataset_path):
 
     return images, labels
 
+
 def analyze_classes(labels):
     unique_classes, class_counts = np.unique(labels, return_counts=True)
     print(f"Number of unique classes: {len(unique_classes)}")
@@ -35,6 +42,7 @@ def analyze_classes(labels):
 
     return class_distribution
 
+
 def plot_class_distribution(class_distribution):
     plt.figure(figsize=(10, 6))
     sns.barplot(x="Class", y="Count", data=class_distribution, hue="Class", dodge=False, palette="viridis", legend=False)
@@ -45,6 +53,7 @@ def plot_class_distribution(class_distribution):
     plt.tight_layout()
     plt.savefig("class_distribution.png")  # Save the plot as an image
     plt.show()
+
 
 def prepare_data(images, labels):
     # Normalize the dataset
@@ -70,8 +79,11 @@ def prepare_data(images, labels):
     print(f"Testing data: {len(X_test)} images")
     return X_train, X_test, y_train, y_test
 
+
+# Logistic Regression Model (from scratch)
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
+
 
 def cost_function(theta, X, y):
     m = len(y)
@@ -79,11 +91,13 @@ def cost_function(theta, X, y):
     cost = (-y.dot(np.log(h)) - (1 - y).dot(np.log(1 - h))) / m
     return cost 
 
+
 def gradient(theta, X, y):
     m = len(y)
     h = sigmoid(X.dot(theta))
     grad = X.T.dot(h - y) / m
     return grad
+
 
 def one_vs_all(X, y, num_labels, max_iters, alpha=0.1):
     m, n = X.shape
@@ -112,8 +126,9 @@ def predict_one_vs_all(all_theta, X):
     h = sigmoid(X_with_intercept.dot(all_theta.T))  # (m x num_labels)
     return np.argmax(h, axis=1)  # Return the index of the highest probability
 
+
 # Function to generate and plot the confusion matrix
-def plot_confusion_matrix(y_test, y_test_pred, labels):
+def plot_lr_confusion_matrix(y_test, y_test_pred, labels):
     # Generate confusion matrix
     conf_matrix = confusion_matrix(y_test, y_test_pred)
 
@@ -125,7 +140,8 @@ def plot_confusion_matrix(y_test, y_test_pred, labels):
     plt.ylabel("True")
     plt.show()
 
-def plot_loss_curve(max_iters):
+
+def plot_lr_loss_curve(max_iters):
     iterations = np.arange(1, max_iters + 1)
     loss_curve = np.random.rand(max_iters) 
     
@@ -139,7 +155,8 @@ def plot_loss_curve(max_iters):
     plt.savefig("error_curve.png")
     plt.show()
 
-def plot_accuracy_curve(max_iters):
+
+def plot_lr_accuracy_curve(max_iters):
     iterations = np.arange(1, max_iters + 1)
     train_accuracy_curve = np.random.rand(max_iters) 
     validation_accuracy_curve = np.random.rand(max_iters)  
@@ -155,11 +172,13 @@ def plot_accuracy_curve(max_iters):
     plt.savefig("accuracy_curve.png")
     plt.show()
 
+
 def svm_train(X_train_flattened, X_test_flattened, y_train, kernel):
     svm_model = SVC(kernel=kernel, random_state=42)
     svm_model.fit(X_train_flattened, y_train)
     y_test_pred = svm_model.predict(X_test_flattened)
     return y_test_pred
+
 
 def svm_test_eval(y_test_pred, y_test, kernel):
     test_accuracy = accuracy_score(y_test, y_test_pred)
@@ -175,6 +194,183 @@ def svm_test_eval(y_test_pred, y_test, kernel):
     plt.tight_layout()
     plt.show()
 
+
+# First model: Shallow network with only 2 layers and less neurons per layer
+def shallow_nn():
+    model = Sequential([
+        Flatten(), # Flatten the 28x28 input images
+        Dense(128, activation='relu'),
+        Dropout(0.2),
+        Dense(64, activation='relu'),
+        Dense(26, activation='softmax')  # 26 classes for the alphabet
+    ])
+    
+    return model
+
+# Second model: Deeper network with 4 layers and more neurons per layer
+def deeper_nn():
+    model = Sequential([
+        Flatten(), # Flatten the 28x28 input images        
+        Dense(512, activation='relu'),
+        Dropout(0.2),
+        Dense(256, activation='relu'),
+        Dropout(0.2),
+        Dense(128, activation='relu'),
+        Dense(64, activation='relu'),
+        Dense(26, activation='softmax')  # 26 classes for the alphabet
+    ])
+    
+    return model
+
+
+# Function to plot training history
+def plot_nn_training_history(history, model_name):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # Plot accuracy
+    ax1.plot(history.history['accuracy'], label='Training')
+    ax1.plot(history.history['val_accuracy'], label='Validation')
+    ax1.set_title(f'{model_name} - Accuracy')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Accuracy')
+    ax1.grid(True)
+    ax1.legend()
+    
+    # Plot loss
+    ax2.plot(history.history['loss'], label='Training')
+    ax2.plot(history.history['val_loss'], label='Validation')
+    ax2.set_title(f'{model_name} - Error')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Error')
+    ax2.grid(True)
+    ax2.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+
+# Training and evaluation function
+def train_and_evaluate_nn(model, model_name, x_train, y_train, x_test, y_test):
+    # Compile model
+    model.compile(optimizer=AdamW(learning_rate=0.001),
+                 loss='sparse_categorical_crossentropy',
+                 metrics=['accuracy'])
+    
+    # Add early stopping
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        patience=3,
+        restore_best_weights=True
+    )
+    
+    # Train model
+    history = model.fit(
+        x_train, y_train,
+        batch_size=64,
+        epochs=15,
+        validation_data=(x_test, y_test),
+        callbacks=[early_stopping]
+    )
+    
+    # Plot training history
+    plot_nn_training_history(history, model_name)
+    
+    # Evaluate model
+    test_loss, test_acc = model.evaluate(x_test, y_test, verbose=1)
+    print(f"{model_name} - Test Accuracy: {test_acc:.4f}")
+    
+    return history, test_acc
+
+# Plot confusion matrix using seaborn heatmap
+def plot_nn_confusion_matrix(y_true, y_pred, classes):
+    # Calculate confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    
+    # Create figure and plot
+    plt.figure(figsize=(15, 12))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=classes,
+                yticklabels=classes)
+    plt.title('Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.tight_layout()
+    plt.savefig("confusion_matrix.png")  # Save the plot as an image
+    plt.show()
+
+
+# Evaluate model performance with various metrics
+def evaluate_nn_model(model, x_test, y_test):
+    # Get predictions
+    y_pred = model.predict(x_test)
+    
+    # Convert predicted probabilities back to class indices
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    
+    # Create class labels (A-Z)
+    class_labels = [chr(i + ord('A')) for i in range(26)]
+    
+    # Plot confusion matrix
+    plot_nn_confusion_matrix(y_test, y_pred_classes, class_labels)
+    
+    # Calculate and print classification report
+    report = classification_report(y_test, y_pred_classes, 
+                                 target_names=class_labels,
+                                 digits=4)
+    print("\nClassification Report:")
+    print(report)
+    
+    # Calculate and print average F1 score
+    avg_f1 = f1_score(y_test, y_pred_classes, average='weighted')
+    print(f"\nBest Model: {best_model_name}")
+    print(f"Test Accuracy: {best_acc:.4f}")
+    print(f"Average F1 Score: {avg_f1:.4f}")
+
+
+def preprocess_image(image_path):
+    # Load the image
+    img = load_img(image_path, color_mode='grayscale', target_size=(28, 28))
+    img_array = img_to_array(img) # Normalize pixel values to [0,1]
+    inverted_array = (255 - img_array) / 255.0  # Invert using NumPy
+    img_array = tf.expand_dims(inverted_array, axis=0)  # Reshape to match model input shape
+
+    return img, img_array
+
+def predict_image(model, image_path):
+    # Preprocess the image
+    img, img_array = preprocess_image(image_path)
+    
+    # Predict the class
+    prediction = model.predict(img_array, verbose=0)
+    predicted_class = np.argmax(prediction, axis=1)[0]
+    
+    # Convert class index to alphabet
+    predicted_alphabet = chr(predicted_class + 65)
+    
+    return predicted_alphabet
+
+
+def test_best_model_on_external_imgs(images_dir):
+    # List to store predictions
+    predictions = []
+
+    # Iterate over each image in the directory
+    plt.figure(figsize=(20, 15))
+    for i, image_file in enumerate(os.listdir(images_dir)):
+        image_path = os.path.join(images_dir, image_file)
+        predicted_alphabet = predict_image(loaded_model, image_path)
+        predictions.append((image_file, predicted_alphabet))
+        
+        # Display the image and prediction in a subplot
+        plt.subplot(3, 5, i + 1)
+        img, _ = preprocess_image(image_path)
+        plt.imshow(img, cmap='gray')
+        plt.title(f"Predicted Alphabet: {predicted_alphabet}", fontsize=20)
+        plt.axis('off')
+
+    plt.tight_layout()
+    plt.savefig("team_name_predictions.png")  # Save the plot as an image
+    plt.show()
 
 if __name__ == "__main__":
     DATASET_PATH = "A_Z Handwritten Data.csv"
@@ -223,26 +419,69 @@ if __name__ == "__main__":
     print(f"F1 Score: {f1:.4f}")
     
     # Plot Confusion Matrix
-    plot_confusion_matrix(y_test, y_test_pred, labels)
+    plot_lr_confusion_matrix(y_test, y_test_pred, labels)
 
     # Plot the loss curve
-    plot_loss_curve(max_iters)
+    plot_lr_loss_curve(max_iters)
 
     # Plot the accuracy curve
-    plot_accuracy_curve(max_iters)
+    plot_lr_accuracy_curve(max_iters)
 
-    ### SVM with linier
-    print('start train svm linear')
+
+    """
+    SVM with Linear Kernel
+    """
+    # SVM with Linear kernel
+    print('Start svm_train with linear kernel')
     y_test_pred = svm_train(X_train_flattened, X_test_flattened, y_train, "linear")
 
-    ###SVM linier eval
-    print('start eval svm linear')
+    # SVM with Linear kernel evaluation
+    print('Start svm_test_eval with linear kernel')
     svm_test_eval(y_test_pred, y_test, "linear")
 
-    ### SVM nonLinear
-    print('start train svm poly')
+    """
+    SVM with Non-Linear Kernel
+    """
+    # SVM with Non-Linear kernel
+    print('Start svm_train with poly kernel')
     y_test_pred = svm_train(X_train_flattened, X_test_flattened, y_train, "poly")
 
-    print('start eval svm poly')
+    # SVM with Non-Linear kernel evaluation
+    print('Start svm_test_eval with poly kernel')
     svm_test_eval(y_test_pred, y_test, "poly")
+
+
+    """
+    Neural Networks
+    """
+    # Train and evaluate Model 1
+    print("\nTraining Model 1 (Shallow NN with 2 hidden layers)...")
+    shallow_nn_model = shallow_nn()
+    _, acc1 = train_and_evaluate_nn(shallow_nn_model, "Shallow NN", X_train, y_train, X_test, y_test)
+
+    # Train and evaluate Model 2
+    print("\nTraining Model 2 (Deeper NN with 4 hidden layers)...")
+    deeper_nn_model = deeper_nn()
+    _, acc2 = train_and_evaluate_nn(deeper_nn_model, "Deeper NN", X_train, y_train, X_test, y_test)
+
+    # Save the best model
+    best_model = shallow_nn_model if acc1 > acc2 else deeper_nn_model
+    best_model_name = "Shallow NN" if acc1 > acc2 else "Deeper NN"
+    best_acc = max(acc1, acc2)
+
+    print(f"\nSaving {best_model_name} (Accuracy: {best_acc:.4f}) as the best model...")
+    best_model.save('best_nn_model.h5')
+
+    # Load the saved model and evaluate it thoroughly
+    print("\nEvaluating best model with detailed metrics...")
+    loaded_model = tf.keras.models.load_model('best_nn_model.h5')
+
+    # Perform detailed evaluation
+    print("\nDetailed Evaluation of Best Model:")
+    print("=" * 50)
+    evaluate_nn_model(loaded_model, X_test, y_test)
+
+    # Directory containing the images
+    images_dir = "team_names_letters/"
+    test_best_model_on_external_imgs(images_dir)
 

@@ -3,8 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import confusion_matrix, f1_score , accuracy_score
 from scipy.optimize import minimize
+from sklearn.svm import SVC
+
 
 def load_dataset(dataset_path):
     print("Loading dataset...")
@@ -153,6 +155,26 @@ def plot_accuracy_curve(max_iters):
     plt.savefig("accuracy_curve.png")
     plt.show()
 
+def svm_train(X_train_flattened, X_test_flattened, y_train, kernel):
+    svm_model = SVC(kernel=kernel, random_state=42)
+    svm_model.fit(X_train_flattened, y_train)
+    y_test_pred = svm_model.predict(X_test_flattened)
+    return y_test_pred
+
+def svm_test_eval(y_test_pred, y_test, kernel):
+    test_accuracy = accuracy_score(y_test, y_test_pred)
+    test_f1 = f1_score(y_test, y_test_pred, average='weighted')
+    print(f"Test Accuracy: {test_accuracy:.2f}")
+    print(f"Test F1 Score: {test_f1:.4f}")
+    conf_matrix = confusion_matrix(y_test, y_test_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", cbar=False)
+    plt.title(f"Confusion Matrix ({kernel} Kernel)")
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     DATASET_PATH = "A_Z Handwritten Data.csv"
@@ -208,3 +230,19 @@ if __name__ == "__main__":
 
     # Plot the accuracy curve
     plot_accuracy_curve(max_iters)
+
+    ### SVM with linier
+    print('start train svm linear')
+    y_test_pred = svm_train(X_train_flattened, X_test_flattened, y_train, "linear")
+
+    ###SVM linier eval
+    print('start eval svm linear')
+    svm_test_eval(y_test_pred, y_test, "linear")
+
+    ### SVM nonLinear
+    print('start train svm poly')
+    y_test_pred = svm_train(X_train_flattened, X_test_flattened, y_train, "poly")
+
+    print('start eval svm poly')
+    svm_test_eval(y_test_pred, y_test, "poly")
+

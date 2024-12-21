@@ -83,19 +83,23 @@ def gradient(theta, X, y):
     grad = X.T.dot(h - y) / m
     return grad
 
-def one_vs_all(X, y, num_labels, max_iters):
+def one_vs_all(X, y, num_labels, max_iters, alpha=0.1):
     m, n = X.shape
-    all_theta = np.zeros((num_labels, n + 1))  # Theta for each class, +1 for the intercept term
+    all_theta = np.zeros((num_labels, n + 1))  # Theta for each class, +1 for intercept term
 
     # Add intercept term (bias term) to the feature matrix
     X_with_intercept = np.column_stack((np.ones(m), X))  # Add a column of ones for the intercept term
 
     for c in range(num_labels):
-        initial_theta = np.zeros(n + 1)  # +1 for the intercept term
+        theta = np.zeros(n + 1)  # +1 for the intercept term
         y_c = (y == c).astype(int)  # Convert the labels to 1 vs. all
-        result = minimize(fun=cost_function, x0=initial_theta, jac=gradient, args=(X_with_intercept, y_c), 
-                          method='TNC', options={'maxfun': max_iters})
-        all_theta[c, :] = result.x
+
+        # Gradient Descent
+        for _ in range(max_iters):
+            grad = gradient(theta, X_with_intercept, y_c)
+            theta -= alpha * grad  # Update theta using the learning rate
+        
+        all_theta[c, :] = theta
 
     return all_theta
 
@@ -177,7 +181,7 @@ if __name__ == "__main__":
     
     # Define Parameters
     num_labels = 26  
-    max_iters = 40
+    max_iters = 1000
     
     # Train the model
     all_theta = one_vs_all(X_train_flattened, y_train, num_labels=num_labels, max_iters=max_iters)

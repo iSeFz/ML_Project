@@ -99,25 +99,34 @@ def gradient(theta, X, y):
     return grad
 
 
-def one_vs_all(X, y, num_labels, max_iters, alpha=0.1):
+def one_vs_all(X, y, num_labels, max_iters, alpha=0.1, batch_size=10):
     m, n = X.shape
-    all_theta = np.zeros((num_labels, n + 1))  # Theta for each class, +1 for intercept term
-
-    # Add intercept term (bias term) to the feature matrix
-    X_with_intercept = np.column_stack((np.ones(m), X))  # Add a column of ones for the intercept term
+    all_theta = np.zeros((num_labels, n + 1))  # Theta for each class
+    loss_history = []  # Track loss for each iteration
+    train_accuracy_history = []  # Store training accuracy at each interval
+    validation_accuracy_history = []  # Store validation accuracy at each interval
+    X_with_intercept = np.column_stack((np.ones(m), X))
 
     for c in range(num_labels):
-        theta = np.zeros(n + 1)  # +1 for the intercept term
-        y_c = (y == c).astype(int)  # Convert the labels to 1 vs. all
+        theta = np.zeros(n + 1)
+        y_c = (y == c).astype(int)
 
-        # Gradient Descent
-        for _ in range(max_iters):
+        for i in range(1, max_iters + 1):
             grad = gradient(theta, X_with_intercept, y_c)
-            theta -= alpha * grad  # Update theta using the learning rate
-        
+            theta -= alpha * grad
+            loss = cost_function(theta, X_with_intercept, y_c)
+            loss_history.append(loss)
+
+            # Store accuracy every 100 iterations
+            if i % batch_size == 0:
+                train_accuracy = np.mean(predict_one_vs_all(all_theta, X_train_flattened) == y_train) * 100
+                validation_accuracy = np.mean(predict_one_vs_all(all_theta, X_test_flattened) == y_test) * 100
+                train_accuracy_history.append(train_accuracy)
+                validation_accuracy_history.append(validation_accuracy)
+
         all_theta[c, :] = theta
 
-    return all_theta
+    return all_theta, loss_history, train_accuracy_history, validation_accuracy_history
 
 
 def predict_one_vs_all(all_theta, X):
@@ -140,38 +149,36 @@ def plot_lr_confusion_matrix(y_test, y_test_pred, labels):
     plt.ylabel("True")
     plt.show()
 
+def plot_average_loss_curve(loss_history, num_labels, max_iters):
+    # Reshape the loss history into a 2D array of shape (num_labels, max_iters)
+    loss_history = np.array(loss_history).reshape(num_labels, max_iters)
 
-def plot_lr_loss_curve(max_iters):
+    # Compute the average loss across classes for each iteration
+    average_loss = np.mean(loss_history, axis=0)
+
+    # Generate iteration indices
     iterations = np.arange(1, max_iters + 1)
-    loss_curve = np.random.rand(max_iters) 
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(iterations, loss_curve, label="Loss Curve")
-    plt.title("Error (Loss) Curve", fontsize=14)
-    plt.xlabel("Iterations", fontsize=12)
-    plt.ylabel("Loss", fontsize=12)
+
+    # Plot the average loss curve
+    plt.plot(iterations, average_loss, label="Average Loss Curve", color="blue")
+    plt.title("Average Loss Curve Across Classes")
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
     plt.legend()
-    plt.tight_layout()
-    plt.savefig("error_curve.png")
     plt.show()
 
 
-def plot_lr_accuracy_curve(max_iters):
-    iterations = np.arange(1, max_iters + 1)
-    train_accuracy_curve = np.random.rand(max_iters) 
-    validation_accuracy_curve = np.random.rand(max_iters)  
-
+def plot_accuracy_curves(train_accuracy_history, validation_accuracy_history):
+    iterations = np.arange(1, len(train_accuracy_history) + 1)
     plt.figure(figsize=(10, 6))
-    plt.plot(iterations, train_accuracy_curve, label="Training Accuracy")
-    plt.plot(iterations, validation_accuracy_curve, label="Validation Accuracy")
-    plt.title("Accuracy Curve", fontsize=14)
-    plt.xlabel("Iterations", fontsize=12)
-    plt.ylabel("Accuracy", fontsize=12)
-    plt.legend()
+    plt.plot(iterations, train_accuracy_history, label="Training Accuracy", color="blue", marker="o")
+    plt.plot(iterations, validation_accuracy_history, label="Validation Accuracy", color="orange", marker="o")
+    plt.title("Training and Validation Accuracy Across Iterations", fontsize=14)
+    plt.xlabel("Iteration", fontsize=12)
+    plt.ylabel("Accuracy (%)", fontsize=12)
+    plt.legend(loc="upper left")
     plt.tight_layout()
-    plt.savefig("accuracy_curve.png")
     plt.show()
-
 
 def svm_train(X_train_flattened, X_test_flattened, y_train, kernel):
     svm_model = SVC(kernel=kernel, random_state=42)
@@ -400,9 +407,12 @@ if __name__ == "__main__":
     # Define Parameters
     num_labels = 26  
     max_iters = 1000
+    alpha = 0.1
     
     # Train the model
-    all_theta = one_vs_all(X_train_flattened, y_train, num_labels=num_labels, max_iters=max_iters)
+    all_theta, loss_history, train_accuracy_history, validation_accuracy_history = one_vs_all(
+        X_train_flattened, y_train, num_labels, max_iters, alpha
+    )
 
     # Predict on the training and test set
     y_train_pred = predict_one_vs_all(all_theta, X_train_flattened)
@@ -422,10 +432,10 @@ if __name__ == "__main__":
     plot_lr_confusion_matrix(y_test, y_test_pred, labels)
 
     # Plot the loss curve
-    plot_lr_loss_curve(max_iters)
+    plot_average_loss_curve(loss_history, num_labels, max_iters)
 
     # Plot the accuracy curve
-    plot_lr_accuracy_curve(max_iters)
+    plot_accuracy_curves(train_accuracy_history, validation_accuracy_history)
 
 
     """
